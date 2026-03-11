@@ -44,16 +44,16 @@ services:
 
   app:
     build:
-      context: .
+      context: ./apps/backend
       target: development
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - .:/app
+      - ./apps/backend:/app
       - /app/node_modules
     env_file:
-      - .env
+      - ./apps/backend/.env
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://curated:curated@postgres:5432/curated_dev
@@ -71,14 +71,14 @@ services:
 
   worker:
     build:
-      context: .
+      context: ./apps/backend
       target: development
     restart: unless-stopped
     volumes:
-      - .:/app
+      - ./apps/backend:/app
       - /app/node_modules
     env_file:
-      - .env
+      - ./apps/backend/.env
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://curated:curated@postgres:5432/curated_dev
