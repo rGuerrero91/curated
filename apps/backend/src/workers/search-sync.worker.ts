@@ -8,7 +8,7 @@
 import { Worker, type Job } from 'bullmq'
 import { typesense } from '../lib/typesense.js'
 import { prisma } from '../lib/prisma.js'
-import { redis } from '../lib/redis.js'
+import { bullmqConnection } from '../lib/redis.js'
 import type { SearchSyncJob } from './queues.js'
 
 async function syncCollection(id: string, action: 'upsert' | 'delete') {
@@ -88,6 +88,6 @@ export function createSearchSyncWorker() {
         await syncLink(id, action)
       }
     },
-    { connection: redis, concurrency: 10 },
+    { connection: bullmqConnection, concurrency: 10 },
   )
 }

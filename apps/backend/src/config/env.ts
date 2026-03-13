@@ -12,8 +12,10 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.string().url(),
 
-  // Session
-  SESSION_SECRET: z.string().min(32),
+  // Session — must be 32 random bytes expressed as 64 hex characters
+  SESSION_SECRET: z.string().regex(/^[0-9a-f]{64}$/, {
+    message: 'SESSION_SECRET must be 64 lowercase hex characters (run: openssl rand -hex 32)',
+  }),
 
   // Firebase Admin
   FIREBASE_PROJECT_ID: z.string(),
@@ -33,14 +35,14 @@ const envSchema = z.object({
   TYPESENSE_API_KEY: z.string(),
   TYPESENSE_PROTOCOL: z.enum(['http', 'https']).default('https'),
 
-  // OpenAI
-  OPENAI_API_KEY: z.string().startsWith('sk-'),
+  // OpenAI — optional; AI features are disabled when absent
+  OPENAI_API_KEY: z.string().min(20).startsWith('sk-').optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
 
 if (!parsed.success) {
-  console.error('❌ Invalid environment variables:')
+  console.error('!!! Invalid environment variables:')
   console.error(parsed.error.flatten().fieldErrors)
   process.exit(1)
 }

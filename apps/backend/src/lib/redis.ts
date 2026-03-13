@@ -14,3 +14,12 @@ redis.on('error', (err) => {
 redis.on('connect', () => {
   console.log('[redis] connected')
 })
+
+// Plain options for BullMQ — avoids the ioredis version conflict between the
+// top-level ioredis package and BullMQ's bundled ioredis copy.
+const { hostname, port } = new URL(env.REDIS_URL)
+export const bullmqConnection = {
+  host: hostname,
+  port: Number(port) || 6379,
+  maxRetriesPerRequest: null as null,
+}

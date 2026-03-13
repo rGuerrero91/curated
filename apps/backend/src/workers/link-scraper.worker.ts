@@ -16,14 +16,14 @@ import { prisma } from '../lib/prisma.js'
 import { r2, toPublicUrl } from '../lib/r2.js'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { env } from '../config/env.js'
-import { redis } from '../lib/redis.js'
+import { bullmqConnection } from '../lib/redis.js'
 import type { LinkScraperJob } from './queues.js'
 
 interface OGMeta {
-  title?: string
-  description?: string
-  imageUrl?: string
-  faviconUrl?: string
+  title: string | undefined
+  description: string | undefined
+  imageUrl: string | undefined
+  faviconUrl: string | undefined
 }
 
 async function scrapeOGMeta(url: string): Promise<OGMeta> {
@@ -44,7 +44,7 @@ async function scrapeOGMeta(url: string): Promise<OGMeta> {
     : new URL(faviconHref, url).toString()
 
   return {
-    title: og('title') ?? $('title').text().trim() || undefined,
+    title: (og('title') ?? $('title').text().trim()) || undefined,
     description: og('description') || undefined,
     imageUrl: og('image') || undefined,
     faviconUrl,
@@ -100,14 +100,14 @@ export function createLinkScraperWorker() {
       await prisma.link.update({
         where: { id: linkId },
         data: {
-          title: meta.title,
-          description: meta.description,
+          title: meta.title ?? null,
+          description: meta.description ?? null,
           thumbnailUrl,
-          faviconUrl: meta.faviconUrl,
+          faviconUrl: meta.faviconUrl ?? null,
           scrapedAt: new Date(),
         },
       })
     },
-    { connection: redis, concurrency: 5 },
+    { connection: bullmqConnection, concurrency: 5 },
   )
 }

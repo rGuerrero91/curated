@@ -11,9 +11,9 @@
  *   - notifications    Fan-out follow/like/comment events to followers
  */
 import { Queue } from 'bullmq'
-import { redis } from '../lib/redis.js'
+import { bullmqConnection } from '../lib/redis.js'
 
-const connection = redis
+const connection = bullmqConnection
 
 // ── Job payload types ──────────────────────────────────────────
 

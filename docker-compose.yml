@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U curated"]
+      test: ["CMD-SHELL", "pg_isready -U curated -d curated_dev"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -41,16 +41,43 @@ services:
       --data-dir=/data
       --api-key=local-dev-key
       --enable-cors
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/8108' 2>/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+      target: development
+    working_dir: /app/apps/backend
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - ./apps/backend/.env
+    environment:
+      DATABASE_URL: postgresql://curated:curated@postgres:5432/curated_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npx prisma migrate deploy
+    restart: "no"
 
   app:
     build:
-      context: ./apps/backend
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
       target: development
     restart: unless-stopped
+    working_dir: /app/apps/backend
     ports:
       - "3000:3000"
     volumes:
-      - ./apps/backend:/app
+      - .:/app
       - /app/node_modules
     env_file:
       - ./apps/backend/.env
@@ -63,19 +90,23 @@ services:
       TYPESENSE_API_KEY: local-dev-key
       TYPESENSE_PROTOCOL: http
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      typesense:
         condition: service_healthy
     command: npm run dev
 
   worker:
     build:
-      context: ./apps/backend
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
       target: development
     restart: unless-stopped
+    working_dir: /app/apps/backend
     volumes:
-      - ./apps/backend:/app
+      - .:/app
       - /app/node_modules
     env_file:
       - ./apps/backend/.env
@@ -88,9 +119,11 @@ services:
       TYPESENSE_API_KEY: local-dev-key
       TYPESENSE_PROTOCOL: http
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      typesense:
         condition: service_healthy
     command: npm run worker
 

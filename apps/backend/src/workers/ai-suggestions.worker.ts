@@ -12,7 +12,7 @@
 import { Worker, type Job } from 'bullmq'
 import { openai } from '../lib/openai.js'
 import { prisma } from '../lib/prisma.js'
-import { redis } from '../lib/redis.js'
+import { bullmqConnection } from '../lib/redis.js'
 import type { AiSuggestionsJob } from './queues.js'
 
 interface Suggestion {
@@ -99,6 +99,6 @@ export function createAiSuggestionsWorker() {
         })),
       })
     },
-    { connection: redis, concurrency: 2 },
+    { connection: bullmqConnection, concurrency: 2 },
   )
 }

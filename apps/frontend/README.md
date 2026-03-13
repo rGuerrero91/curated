@@ -41,32 +41,24 @@ Everything else (`DATABASE_URL`, `REDIS_URL`, `TYPESENSE_*`) is pre-configured f
 docker-compose up
 ```
 
-This starts five services:
+This starts six services in the correct order:
 
 | Service     | URL                   | Purpose                                          |
 | ----------- | --------------------- | ------------------------------------------------ |
-| `app`       | http://localhost:3000 | Fastify REST API                                 |
 | `postgres`  | localhost:5432        | Database                                         |
+| `migrate`   | —                     | Runs DB migrations then exits                    |
 | `redis`     | localhost:6379        | Cache + job queue                                |
 | `typesense` | localhost:8108        | Search engine                                    |
+| `app`       | http://localhost:3000 | Fastify REST API                                 |
 | `worker`    | —                     | Background jobs (link scraping, AI, search sync) |
 
-First boot takes a minute while Docker pulls images. Wait until you see:
+`app` and `worker` won't start until migrations complete. First boot takes a minute while Docker pulls images. Wait until you see:
 
 ```
 app    | Fastify listening on 0.0.0.0:3000
 ```
 
-## 4. Run the database migration
-
-In a second terminal (only needed the first time, or after schema changes):
-
-```bash
-cd apps/backend
-npm run db:migrate
-```
-
-## 5. Verify everything is working
+## 4. Verify everything is working
 
 ```bash
 # Health check
@@ -135,6 +127,6 @@ See `/docs` for the full reference.
 
 **Port already in use** — stop any local Postgres/Redis instances, or change the host ports in `docker-compose.yml`.
 
-**`db:migrate` fails** — make sure `docker-compose up` is running first (the app container needs the database to be healthy).
+**Migrations fail** — check `docker-compose logs migrate` for the error. Most commonly the postgres container wasn't healthy yet — rerunning `docker-compose up` is usually enough.
 
 **Firebase errors on `POST /auth/session`** — double-check `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` in `apps/backend/.env`. The private key must preserve literal `\n` newlines (keep it quoted as in the example).

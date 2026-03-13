@@ -9,7 +9,7 @@
  * follower counts, consider a separate fan-out strategy.
  */
 import { Worker, type Job } from 'bullmq'
-import { redis } from '../lib/redis.js'
+import { bullmqConnection } from '../lib/redis.js'
 import type { NotificationsJob } from './queues.js'
 
 export function createNotificationsWorker() {
@@ -22,6 +22,6 @@ export function createNotificationsWorker() {
       // write to an in-app notifications table, send an email, etc.
       console.log(`[notifications] ${type} | actor=${actorId} target=${targetUserId} resource=${resourceId}`)
     },
-    { connection: redis, concurrency: 20 },
+    { connection: bullmqConnection, concurrency: 20 },
   )
 }
