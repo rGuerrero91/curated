@@ -71,8 +71,21 @@ fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString()
 
 // ── Startup ────────────────────────────────────────────────────
 
+async function waitForTypesense(retries = 15, delayMs = 2000): Promise<void> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await ensureTypesenseCollections()
+      return
+    } catch (err) {
+      if (i === retries) throw err
+      fastify.log.warn(`[typesense] not ready yet (attempt ${i}/${retries}), retrying in ${delayMs}ms…`)
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+}
+
 try {
-  await ensureTypesenseCollections()
+  await waitForTypesense()
   await fastify.listen({ port: env.PORT, host: env.HOST })
 } catch (err) {
   fastify.log.error(err)
