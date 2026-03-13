@@ -59,6 +59,12 @@ This starts six services in the correct order:
 app    | Fastify listening on 0.0.0.0:3000
 ```
 
+## Seed the test data
+
+```bash
+npm run db:seed -w @curated/backend
+```
+
 ## 4. Verify everything is working
 
 ```bash
