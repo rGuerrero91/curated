@@ -38,6 +38,7 @@ Everything else (`DATABASE_URL`, `REDIS_URL`, `TYPESENSE_*`) is pre-configured f
 ## 3. Start the backend
 
 ```bash
+docker-compose build app worker
 docker-compose up
 ```
 
