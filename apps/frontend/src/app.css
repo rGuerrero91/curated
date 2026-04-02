@@ -1,0 +1,3 @@
+/* Tailwind v4 CSS-first setup — no tailwind.config.js needed.
+   The @tailwindcss/vite plugin scans .svelte files and generates utility classes. */
+@import 'tailwindcss';
