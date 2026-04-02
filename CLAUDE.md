@@ -9,7 +9,7 @@ curated/
 ├── apps/
 │   ├── backend/          # Fastify API + BullMQ workers
 │   └── frontend/         # (not yet scaffolded)
-├── docker-compose.yml    # local dev: postgres, redis, typesense, app, worker
+├── docker-compose.yml    # local dev: postgres, redis, typesense, migrate, app, worker
 ├── package.json          # npm workspaces root
 └── .prettierrc
 ```
@@ -42,9 +42,9 @@ Backend workspace name: `@curated/backend`
 config/env.ts               # zod-validated env vars (fail-fast at startup)
 lib/
   prisma.ts                 # singleton PrismaClient
-  redis.ts                  # singleton ioredis
+  redis.ts                  # singleton ioredis + bullmqConnection export
   r2.ts                     # S3Client → Cloudflare R2
-  typesense.ts
+  typesense.ts              # client + schema definitions + ensureTypesenseCollections()
   openai.ts
   firebase-admin.ts
 plugins/
@@ -145,30 +145,57 @@ GET /upload/signed-url?resource=   Returns R2 presigned PUT URL
 
 One Docker image, two container roles: `app` (web, `npm run dev`) and `worker` (`npm run worker`).
 
+**BullMQ ioredis note:** BullMQ bundles its own ioredis. Pass a plain options object (`{ host, port, maxRetriesPerRequest: null }`) exported as `bullmqConnection` from `lib/redis.ts` instead of the ioredis `Redis` instance — avoids type conflicts under `exactOptionalPropertyTypes`.
+
 ## Dev Commands
 
 ```bash
 # from repo root
-npm run dev:backend       # start backend (tsx watch)
-docker-compose up         # start postgres, redis, typesense, app, worker
+docker-compose up             # start all services (postgres, redis, typesense, migrate, app, worker)
+docker-compose down -v        # full teardown including volumes (required when Dockerfile changes)
+npm run db:seed -w @curated/backend   # seed dev data
 
 # from apps/backend/
-npm run db:migrate        # prisma migrate dev
-npm run db:studio         # prisma studio
-npm run db:seed           # prisma/seed.ts
-npm run test              # vitest run
-npm run build             # tsc
+npm run db:migrate            # prisma migrate dev
+npm run db:studio             # prisma studio
+npm run db:seed               # run prisma/seed.ts
+npm run test                  # vitest run
+npm run build                 # tsc
 ```
 
-## Implementation Order (Backend)
+**Seed:** `prisma/seed.ts` creates 5 users, 20 pre-scraped links, 8 collections, tags, likes, follows, comments, and AI suggestions. Fully idempotent — safe to re-run. Seed users have fake `firebaseUid` values (`seed_uid_alice_001`, etc.) and cannot obtain real session cookies without matching Firebase Auth emulator entries.
 
-1. `prisma/schema.prisma`
-2. `src/config/env.ts`
-3. `src/lib/*.ts` (singleton clients)
-4. `src/plugins/auth.ts`
-5. `src/workers/queues.ts`
-6. `src/app.ts`
-7. Modules: users → collections → links → comments → discovery → ai
+**Seed from Docker** (avoids DATABASE_URL mismatch):
+```bash
+docker-compose exec app npm run db:seed
+```
+
+## Docker Compose Services
+
+| Service | Role |
+|---|---|
+| `postgres` | pgvector/pgvector:pg17, port 5432 |
+| `redis` | redis:7-alpine, port 6379 |
+| `typesense` | typesense/typesense:27.1, port 8108 |
+| `migrate` | one-shot container; runs `prisma migrate deploy` then exits |
+| `app` | web API (`npm run dev`), depends on migrate + redis + typesense healthy |
+| `worker` | BullMQ workers (`npm run worker`), same deps as app |
+
+**Typesense startup note:** Typesense returns HTTP 503 "Not Ready or Lagging" for a window after its TCP port opens — longer when data exists on disk. The healthcheck (`/dev/tcp`) only confirms port connectivity. `app.ts` compensates with `waitForTypesense()`: retries `ensureTypesenseCollections()` up to 15 times with 2s delay before giving up.
+
+## Known Gotchas
+
+- **Stale `node_modules` volume:** If Dockerfile changes (e.g. adding `prisma generate`), run `docker-compose down -v` to clear the anonymous volume before rebuilding. Otherwise the old generated client persists.
+- **`exactOptionalPropertyTypes: true`:** Prisma nullable fields require `?? null` (not `undefined`). Interface optional props must be typed `field: T | undefined`, not `field?: T`.
+- **`OPENAI_API_KEY`** is optional in env.ts (AI is a stretch goal). Leave blank or omit entirely.
+- **`SESSION_SECRET`** must be exactly 64 lowercase hex chars. Generate with `openssl rand -hex 32`.
+- **`prisma/tsconfig.json`** exists to give seed scripts access to Node.js types (`process`, etc.) since the root tsconfig only covers `src/`.
+
+## TypeScript Config Notes
+
+- `tsconfig.json` covers `src/**/*` only — `rootDir: "./src"`
+- `prisma/tsconfig.json` extends root and adds `"types": ["node"]` for seed scripts
+- `tsconfig.build.json` used for production builds (excludes test files)
 
 ## Production
 
