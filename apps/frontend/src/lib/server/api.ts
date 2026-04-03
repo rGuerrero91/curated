@@ -31,14 +31,13 @@ export function makeApi(sessionCookie: string | undefined) {
 
   // Returns a typed fetch wrapper. The generic T tells TypeScript what shape to cast the response to.
   return async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const res = await fetch(`${BACKEND}/api/v1${path}`, {
+    const res = await fetch(`${BACKEND}${path}`, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
-        // Spread cookie header only when we have one — avoids sending an empty Cookie: header
+        // Only set Content-Type when there's a body — Fastify rejects empty bodies
+        // with Content-Type: application/json (FST_ERR_CTP_EMPTY_JSON_BODY).
+        ...(init.body != null ? { 'Content-Type': 'application/json' } : {}),
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
-        // Caller-provided headers are spread last so they can override defaults
-        // (e.g. a DELETE request may omit Content-Type)
         ...init.headers,
       },
     })

@@ -5,9 +5,11 @@
 //   addLink         — submit a URL + note; creates a Link then adds it as a CollectionItem
 //   removeItem      — remove a CollectionItem (owner only)
 
-import { fail, error } from '@sveltejs/kit'
+import { fail, error, redirect } from '@sveltejs/kit'
 import { superValidate, message, type SuperValidated, type Infer } from 'sveltekit-superforms'
-import { zod } from 'sveltekit-superforms/adapters'
+// zod4 adapter required: this workspace installs Zod v4 (^4.0.0) locally.
+// Superforms detects the version and throws if the v3 `zod` adapter is used instead.
+import { zod4 as zod } from 'sveltekit-superforms/adapters'
 import type { PageServerLoad, Actions } from './$types'
 import { makeApi, ApiError } from '$lib/server/api'
 import { addLinkSchema } from '$lib/schemas'
@@ -105,6 +107,20 @@ export const actions: Actions = {
     // message(form, ...) sets form.message on the returned result.
     // The client reads this via the $message store to show a success notification.
     return message(form, 'Link added!')
+  },
+
+  // POST ?/deleteCollection — permanently delete this collection (owner only)
+  deleteCollection: async ({ params, cookies }) => {
+    const api = makeApi(cookies.get('curated_session'))
+    try {
+      await api<void>(`/collections/${params.id}`, { method: 'DELETE' })
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { error: err.message })
+      }
+      return fail(500, { error: 'Failed to delete collection' })
+    }
+    redirect(303, '/')
   },
 
   // POST ?/removeItem — remove a link from this collection (owner only)

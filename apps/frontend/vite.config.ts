@@ -12,13 +12,15 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // All /api/* requests are forwarded to the Fastify backend.
-      // This is critical for the login flow: the browser's fetch to /api/v1/auth/session
-      // goes through this proxy, so the Set-Cookie response is attributed to localhost:5173
-      // (not localhost:3000), making the cookie accessible for all subsequent same-origin requests.
-      '/api': {
+      // /api/v1/* browser requests are forwarded to Fastify with the prefix stripped.
+      // The backend routes are mounted without the /api/v1 prefix (fastify-plugin breaks
+      // prefix encapsulation), so /api/v1/auth/session → localhost:3000/auth/session.
+      // Critical for login: the Set-Cookie on the response is attributed to localhost:5173,
+      // making the cookie accessible for all subsequent same-origin requests.
+      '/api/v1': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/api\/v1/, ''),
       },
     },
   },

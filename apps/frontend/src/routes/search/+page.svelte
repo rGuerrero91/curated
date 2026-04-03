@@ -12,14 +12,23 @@
 
   let { data } = $props()
 
-  // The Typesense search response shape — hits.hits is the actual results array.
-  // In a production app you'd type this properly; for the PoC we cast.
+  // Typesense returns flat documents — reshape them into the Collection shape
+  // that CollectionCard expects (nested owner, _count, tags array of objects).
   const collections = $derived(() => {
     const r = data.results as any
-    // Handle both direct array response and Typesense hits wrapper
-    if (Array.isArray(r)) return r as Collection[]
-    if (r?.hits) return r.hits.map((h: any) => h.document) as Collection[]
-    return []
+    const docs: any[] = Array.isArray(r) ? r : (r?.hits?.map((h: any) => h.document) ?? [])
+    return docs.map((doc): Collection => ({
+      id: doc.id,
+      slug: doc.slug ?? '',
+      title: doc.title,
+      description: doc.description ?? null,
+      coverUrl: doc.coverUrl ?? null,
+      createdAt: new Date(doc.createdAt * 1000).toISOString(),
+      isPublic: doc.isPublic,
+      owner: { id: '', username: doc.ownerUsername, displayName: doc.ownerUsername, avatarUrl: null },
+      tags: (doc.tags ?? []).map((name: string) => ({ tag: { name } })),
+      _count: { items: doc.itemCount ?? 0, likes: doc.likeCount ?? 0, followers: doc.followCount ?? 0 },
+    }))
   })
 </script>
 

@@ -42,7 +42,7 @@
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
       />
     {:else}
-      <div class="w-full h-full bg-linear-to-br {gradient} group-hover:opacity-90 transition-opacity" />
+      <div class="w-full h-full bg-linear-to-br {gradient} group-hover:opacity-90 transition-opacity"></div>
     {/if}
   </div>
 

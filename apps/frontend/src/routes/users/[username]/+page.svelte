@@ -112,7 +112,8 @@
 {:else}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {#each data.collections.items as collection (collection.id)}
-      <CollectionCard {collection} />
+      <!-- /users/:username/collections omits owner and tags; inject them -->
+      <CollectionCard collection={{ ...collection, owner: profile, tags: [] }} />
     {/each}
   </div>
 

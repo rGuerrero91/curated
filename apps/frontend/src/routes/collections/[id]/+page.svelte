@@ -11,7 +11,7 @@
   import { superForm } from 'sveltekit-superforms'
   // zodClient is the browser-optimised adapter — same validation logic as zod() but
   // tree-shaken to exclude server-only code. Use this in superForm() validators option.
-  import { zodClient } from 'sveltekit-superforms/adapters'
+  import { zod4Client as zodClient } from 'sveltekit-superforms/adapters'
   import { invalidateAll } from '$app/navigation'
   import Avatar from '$lib/components/Avatar.svelte'
   import LinkCard from '$lib/components/LinkCard.svelte'
@@ -143,6 +143,29 @@
     </div>
   </div>
 </div>
+
+<!-- Delete collection (owner only) -->
+{#if isOwner}
+  <div class="mb-6 flex justify-end">
+    <form
+      method="POST"
+      action="?/deleteCollection"
+      use:enhance={({ cancel }) => {
+        if (!confirm('Delete this collection? This cannot be undone.')) {
+          cancel()
+        }
+      }}
+    >
+      <button
+        type="submit"
+        class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600
+               hover:bg-red-50 transition-colors"
+      >
+        Delete collection
+      </button>
+    </form>
+  </div>
+{/if}
 
 <!-- Add-link form (visible to collection owner only) -->
 {#if isOwner}

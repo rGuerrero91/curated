@@ -17,8 +17,16 @@ export const createCollectionSchema = z.object({
 })
 
 export const addLinkSchema = z.object({
-  url: z.string().url('Must be a valid URL (include https://)'),
+  url: z.url('Must be a valid URL (include https://)'),
   note: z.string().max(300, 'Note must be 300 characters or fewer').optional(),
+})
+
+export const profileSchema = z.object({
+  displayName: z.string().max(80, 'Display name must be 80 characters or fewer').optional(),
+  bio: z.string().max(300, 'Bio must be 300 characters or fewer').optional(),
+  websiteUrl: z.url('Must be a valid URL').or(z.literal('')).optional(),
+  username: z.string().min(2).max(30).regex(/^[a-z0-9_]+$/, 'Only lowercase letters, numbers, and underscores').optional(),
+  isPrivate: z.boolean().default(false),
 })
 
 export const commentSchema = z.object({

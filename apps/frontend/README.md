@@ -1,139 +1,166 @@
 # Curated — Frontend Quickstart
 
-This guide gets the backend API running locally so you can develop the frontend against it.
+SvelteKit 2 + Svelte 5 frontend for the Curated social bookmarking app.
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Compose)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — runs the backend stack
 - [Node.js 22+](https://nodejs.org/) and npm
-- Firebase project credentials (ask your backend collaborator)
+- A Firebase project with **Email/Password** and **Google** sign-in enabled
 
-## 1. Clone & install
+---
+
+## 1. Install dependencies
+
+From the repo root:
 
 ```bash
-git clone <repo-url> curated
-cd curated
 npm install
 ```
 
-## 2. Configure the backend environment
+---
+
+## 2. Configure the frontend environment
 
 ```bash
-cp apps/backend/.env.example apps/backend/.env
+cp apps/frontend/.env.example apps/frontend/.env
 ```
 
-Open `apps/backend/.env` and fill in:
+Open `apps/frontend/.env` and fill in your Firebase **browser SDK** credentials (found in Firebase Console → Project Settings → Your apps → Web app):
 
-| Variable                | Where to get it                                                   |
-| ----------------------- | ----------------------------------------------------------------- |
-| `SESSION_SECRET`        | Run `openssl rand -hex 32` in your terminal                       |
-| `FIREBASE_PROJECT_ID`   | Firebase Console → Project Settings                               |
-| `FIREBASE_CLIENT_EMAIL` | Firebase Console → Service Accounts → Generate key                |
-| `FIREBASE_PRIVATE_KEY`  | Same JSON file as above                                           |
-| `OPENAI_API_KEY`        | Ask your backend collaborator (or skip — AI features won't work)  |
-| `R2_*`                  | Ask your backend collaborator (or skip — file uploads won't work) |
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+```
 
-Everything else (`DATABASE_URL`, `REDIS_URL`, `TYPESENSE_*`) is pre-configured for the local Docker setup and does not need to change.
+`BACKEND_URL` defaults to `http://localhost:3000` and does not need to change for local dev.
+
+---
 
 ## 3. Start the backend
 
+The frontend is server-side rendered and calls the Fastify API on every page load. The backend must be running first.
+
 ```bash
+# In apps/backend/, copy and fill in the backend env (Firebase Admin SDK credentials, SESSION_SECRET, etc.)
+cp apps/backend/.env.example apps/backend/.env
+
+# Then from the repo root:
 docker-compose build app worker
 docker-compose up
 ```
 
-This starts six services in the correct order:
-
-| Service     | URL                   | Purpose                                          |
-| ----------- | --------------------- | ------------------------------------------------ |
-| `postgres`  | localhost:5432        | Database                                         |
-| `migrate`   | —                     | Runs DB migrations then exits                    |
-| `redis`     | localhost:6379        | Cache + job queue                                |
-| `typesense` | localhost:8108        | Search engine                                    |
-| `app`       | http://localhost:3000 | Fastify REST API                                 |
-| `worker`    | —                     | Background jobs (link scraping, AI, search sync) |
-
-`app` and `worker` won't start until migrations complete. First boot takes a minute while Docker pulls images. Wait until you see:
+Wait until you see:
 
 ```
 app    | Fastify listening on 0.0.0.0:3000
 ```
 
-## Seed the test data
+First boot pulls Docker images and runs DB migrations — takes about a minute. See the [backend README](../backend/README.md) for full env var details.
+
+**Seed test users and collections (optional):**
 
 ```bash
-npm run db:seed -w @curated/backend
+docker-compose exec app npm run db:seed
 ```
 
-## 4. Verify everything is working
+---
+
+## 4. Start the frontend
 
 ```bash
-# Health check
-curl http://localhost:3000/health
-
-# API docs (Swagger UI)
-open http://localhost:3000/docs
+npm run dev:frontend
 ```
 
-The Swagger UI at `/docs` documents every endpoint and lets you test them interactively.
+Open [http://localhost:5173](http://localhost:5173).
+
+> The Vite dev server proxies `/api/*` requests to `http://localhost:3000`, so the Firebase login flow works without CORS issues.
+
+---
+
+## How authentication works
+
+Sign-in is the one client-side flow — Firebase Auth SDK must run in the browser:
+
+1. Click **Sign in with Google** (or email/password) on the login page
+2. Firebase SDK authenticates and returns a short-lived ID token
+3. The frontend POSTs the token to `/api/v1/auth/session` via the Vite proxy
+4. Fastify verifies the token, upserts the user, and sets an HttpOnly `curated_session` cookie
+5. All subsequent SSR page loads forward the cookie to the Fastify API automatically
+
+---
+
+## Project structure
+
+```
+src/
+├── app.html                   # HTML shell
+├── app.css                    # Tailwind v4 entry (@import 'tailwindcss')
+├── app.d.ts                   # Global type augmentations (App.PageData, App.Superforms)
+├── lib/
+│   ├── schemas.ts             # Zod schemas for all forms (module-level for Superforms)
+│   ├── types.ts               # TypeScript interfaces matching the API response shapes
+│   ├── firebase.ts            # Browser-only Firebase helpers (signInWithGoogle, etc.)
+│   ├── server/
+│   │   └── api.ts             # makeApi() — server-side cookie forwarding to Fastify
+│   └── components/
+│       ├── Navbar.svelte
+│       ├── CollectionCard.svelte
+│       ├── LinkCard.svelte
+│       ├── TagPill.svelte
+│       └── Avatar.svelte
+└── routes/
+    ├── +layout.server.ts      # Loads current user on every request via /auth/me
+    ├── +layout.svelte         # Root layout: Navbar + page content
+    ├── +page.server.ts        # Home: trending + discovery feed + tag filter
+    ├── +page.svelte
+    ├── login/+page.svelte     # Firebase sign-in (client-only)
+    ├── logout/+page.server.ts # DELETE /auth/session → redirect
+    ├── feed/                  # Personalized feed (auth-gated)
+    ├── search/                # Full-text search via Typesense
+    ├── collections/
+    │   ├── new/               # Create collection (Superforms)
+    │   └── [id]/              # Collection detail: like, add link, remove item
+    └── users/[username]/      # Public profile: follow/unfollow
+```
+
+---
+
+## Key patterns
+
+| Pattern | Where |
+|---|---|
+| SSR data loading | Every `+page.server.ts` `load()` — runs on the server with cookie access |
+| Form actions | Every mutation: create, like, follow, add link |
+| Superforms | `collections/new` and `collections/[id]` — typed validation + `$errors` |
+| Optimistic UI | Like and follow toggles — plain `use:enhance` with local state rollback |
+| URL-driven state | Search `?q=`, tag filter `?tag=`, cursor `?cursor=` |
+| Auth guard | `parent()` in `load()` reads layout user; `redirect(303, '/login')` if null |
+
+---
 
 ## Useful commands
 
 ```bash
-# Stop all services
-docker-compose down
+# Type-check all Svelte and TS files
+npm run check -w @curated/frontend
 
-# Stop and wipe the database (fresh start)
-docker-compose down -v
+# Format
+npm run format -w @curated/frontend
 
-# View backend logs only
-docker-compose logs -f app
-
-# View worker logs
-docker-compose logs -f worker
-
-# Open Prisma Studio (database browser)
-cd apps/backend && npm run db:studio
+# Backend: wipe DB and start fresh
+docker-compose down -v && docker-compose up
 ```
 
-## API Overview
-
-Base URL: `http://localhost:3000/api/v1`
-
-**Auth flow:**
-
-1. Authenticate with Firebase on the client → receive a Firebase ID token
-2. `POST /api/v1/auth/session` with `Authorization: Bearer <token>` → receives a session cookie
-3. All subsequent requests use the cookie automatically
-
-**Key endpoints:**
-
-```
-POST   /api/v1/auth/session         Log in (exchange Firebase token for session cookie)
-DELETE /api/v1/auth/session         Log out
-GET    /api/v1/auth/me              Current user
-
-GET    /api/v1/users/:username      Public profile
-PATCH  /api/v1/users/me             Update your profile
-
-GET    /api/v1/collections          Discovery feed
-POST   /api/v1/collections          Create a collection [auth]
-GET    /api/v1/collections/:id      Collection detail
-
-GET    /api/v1/feed                 Personalized feed [auth]
-GET    /api/v1/trending             Trending collections
-GET    /api/v1/search?q=            Search collections and links
-
-POST   /api/v1/links                Submit a link [auth]
-GET    /api/v1/upload/signed-url    Get R2 presigned URL for file upload [auth]
-```
-
-See `/docs` for the full reference.
+---
 
 ## Troubleshooting
 
-**Port already in use** — stop any local Postgres/Redis instances, or change the host ports in `docker-compose.yml`.
+**`fetch failed` on the home page** — the backend isn't running. Start `docker-compose up` first.
 
-**Migrations fail** — check `docker-compose logs migrate` for the error. Most commonly the postgres container wasn't healthy yet — rerunning `docker-compose up` is usually enough.
+**Firebase popup blocked** — allow popups for `localhost:5173` in your browser settings.
 
-**Firebase errors on `POST /auth/session`** — double-check `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` in `apps/backend/.env`. The private key must preserve literal `\n` newlines (keep it quoted as in the example).
+**`curated_session` cookie not set after login** — confirm the Vite proxy is running (dev server only) and `VITE_FIREBASE_*` env vars are correct.
+
+**Type errors in `node_modules`** — there are known declaration conflicts between the hoisted `cookie` package and `@sveltejs/kit`. These don't affect runtime and can be ignored.

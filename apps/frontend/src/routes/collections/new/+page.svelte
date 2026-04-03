@@ -20,7 +20,7 @@
   import { superForm } from 'sveltekit-superforms'
   // zodClient is the browser-optimised version of the zod adapter.
   // It enables client-side validation inside superForm() without pulling in server-only code.
-  import { zodClient } from 'sveltekit-superforms/adapters'
+  import { zod4Client as zodClient } from 'sveltekit-superforms/adapters'
   import { createCollectionSchema } from '$lib/schemas'
 
   let { data } = $props()
