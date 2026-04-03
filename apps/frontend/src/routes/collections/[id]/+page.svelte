@@ -17,6 +17,7 @@
   import LinkCard from '$lib/components/LinkCard.svelte'
   import TagPill from '$lib/components/TagPill.svelte'
   import { addLinkSchema } from '$lib/schemas'
+  import {fly, slide, fade} from 'svelte/transition';
 
   let { data } = $props()
 
@@ -234,7 +235,7 @@
 {:else}
   <div class="space-y-3">
     {#each data.collection.items as item (item.id)}
-      <div class="relative group">
+      <div class="relative group" in:fly={{ y: 20 }} out:slide>
         <LinkCard {item} />
 
         <!-- Remove button — only shown to the collection owner on hover -->
